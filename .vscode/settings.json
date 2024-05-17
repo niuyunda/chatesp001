@@ -1,0 +1,49 @@
+{
+    "C_Cpp.intelliSenseEngine": "default",
+    "idf.adapterTargetName": "esp32s3",
+    "idf.customExtraPaths": "c:\\Users\\niuyu\\.espressif\\tools\\xtensa-esp-elf-gdb\\12.1_20231023\\xtensa-esp-elf-gdb\\bin;c:\\Users\\niuyu\\.espressif\\tools\\riscv32-esp-elf-gdb\\12.1_20231023\\riscv32-esp-elf-gdb\\bin;c:\\Users\\niuyu\\.espressif\\tools\\xtensa-esp-elf\\esp-13.2.0_20230928\\xtensa-esp-elf\\bin;c:\\Users\\niuyu\\.espressif\\tools\\riscv32-esp-elf\\esp-13.2.0_20230928\\riscv32-esp-elf\\bin;c:\\Users\\niuyu\\.espressif\\tools\\esp32ulp-elf\\2.35_20220830\\esp32ulp-elf\\bin;c:\\Users\\niuyu\\.espressif\\tools\\cmake\\3.24.0\\bin;c:\\Users\\niuyu\\.espressif\\tools\\openocd-esp32\\v0.12.0-esp32-20230921\\openocd-esp32\\bin;c:\\Users\\niuyu\\.espressif\\tools\\ninja\\1.11.1;c:\\Users\\niuyu\\.espressif\\tools\\idf-exe\\1.0.3;c:\\Users\\niuyu\\.espressif\\tools\\ccache\\4.8\\ccache-4.8-windows-x86_64;c:\\Users\\niuyu\\.espressif\\tools\\dfu-util\\0.11\\dfu-util-0.11-win64;c:\\Users\\niuyu\\.espressif\\tools\\esp-rom-elfs\\20230320",
+    "idf.customExtraVars": {
+        "OPENOCD_SCRIPTS": "c:\\Users\\niuyu\\.espressif\\tools\\openocd-esp32\\v0.12.0-esp32-20230921/openocd-esp32/share/openocd/scripts",
+        "IDF_CCACHE_ENABLE": "1",
+        "ESP_ROM_ELF_DIR": "c:\\Users\\niuyu\\.espressif\\tools\\esp-rom-elfs\\20230320/"
+    },
+    "idf.espIdfPathWin": "c:\\Espressif\\frameworks\\esp-idf-v5.2.1",
+    "idf.openOcdConfigs": [
+        "board/esp32s3-bridge.cfg"
+    ],
+    "idf.portWin": "COM10",
+    "idf.pythonBinPathWin": "c:\\Users\\niuyu\\.espressif\\python_env\\idf5.2_py3.11_env\\Scripts\\python.exe",
+    "idf.toolsPathWin": "c:\\Users\\niuyu\\.espressif",
+    "MicroPython.executeButton": [
+        {
+            "text": "▶",
+            "tooltip": "运行",
+            "alignment": "left",
+            "command": "extension.executeFile",
+            "priority": 3.5
+        }
+    ],
+    "MicroPython.syncButton": [
+        {
+            "text": "$(sync)",
+            "tooltip": "同步",
+            "alignment": "left",
+            "command": "extension.execute",
+            "priority": 4
+        }
+    ],
+    "files.associations": {
+        "task.h": "c",
+        "http_server.h": "c",
+        "freertos.h": "c",
+        "esp_log.h": "c",
+        "esp_err.h": "c",
+        "led_indicator.h": "c",
+        "string.h": "c",
+        "led_strip.h": "c",
+        "gpio.h": "c",
+        "esp_check.h": "c",
+        "wifi_manager.h": "c"
+    },
+    "idf.flashType": "UART"
+}
