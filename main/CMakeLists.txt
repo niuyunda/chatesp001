@@ -1,3 +1,3 @@
 idf_component_register(SRCS "main.c"
                        INCLUDE_DIRS "."
-                       REQUIRES wifi_manager led_indicator)
+                       REQUIRES led_driver button_handler wifi_manager nvs_module)

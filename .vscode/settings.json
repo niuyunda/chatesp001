@@ -43,7 +43,18 @@
         "led_strip.h": "c",
         "gpio.h": "c",
         "esp_check.h": "c",
-        "wifi_manager.h": "c"
+        "wifi_manager.h": "c",
+        "complex": "c",
+        "iot_button.h": "c",
+        "timers.h": "c",
+        "button_manager.h": "c",
+        "led_driver.h": "c",
+        "stdio.h": "c",
+        "button_handler.h": "c",
+        "esp_system.h": "c",
+        "web_server.h": "c",
+        "esp_wifi_he_types.h": "c",
+        "esp_wifi_types_private.h": "c"
     },
     "idf.flashType": "UART"
 }

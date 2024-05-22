@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Configure WiFi</title>
+    <link href="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.3.3/css/bootstrap.min.css" rel="stylesheet">
+</head>
+
+<body>
+    <div class="container text-center bg-light">
+        <div class="row mt-10">
+            <h1 class="text-center">WiFi设置</h1>
+        </div>
+        <div class="row justify-content-md-center">
+            <form class="col" method="post" action="/submit">
+                <div class="mb-3 row">
+                    <lable for="ssid" class="col-sm-2 col-form-label">WiFi名称:</lable>
+                    <div class="col-sm-10">
+                        <input type="text" class="form-control" id="ssid" name="ssid" placeholder="WiFi 名称">
+                    </div>
+                </div>
+                <div class="mb-3 row">
+                    <lable for="password" class="col-sm-2 col-form-label">WiFi密码:</lable>
+                    <div class="col-sm-10">
+                        <input type="password" class="form-control" id="password" name="password" placeholder="WiFi 密码">
+                    </div>
+                </div>
+                <div class="mb-3 row">
+                    <input class="btn btn-primary" type="submit" value="保存">
+                </div>
+            </form>
+        </div>
+    </div>
+</body>
+
+</html>

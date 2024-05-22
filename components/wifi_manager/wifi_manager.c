@@ -1,200 +1,193 @@
-#include "wifi_manager.h"
+/*
+ * SPDX-FileCopyrightText: 2023 Espressif Systems (Shanghai) CO LTD
+ *
+ * SPDX-License-Identifier: Unlicense OR CC0-1.0
+ */
+/*  WiFi softAP & station Example
+
+   This example code is in the Public Domain (or CC0 licensed, at your option.)
+
+   Unless required by applicable law or agreed to in writing, this
+   software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+   CONDITIONS OF ANY KIND, either express or implied.
+*/
+#include <string.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/event_groups.h"
+#include "esp_mac.h"
 #include "esp_wifi.h"
-#include "esp_log.h"
 #include "esp_event.h"
+#include "esp_log.h"
+#include "esp_netif_net_stack.h"
 #include "esp_netif.h"
 #include "nvs_flash.h"
-#include "string.h"
-#include "led_indicator.h"
-#include "web_server.h" // Include the web server header
+#include "lwip/inet.h"
+#include "lwip/netdb.h"
+#include "lwip/sockets.h"
+#if IP_NAPT
+#include "lwip/lwip_napt.h"
+#endif
+#include "lwip/err.h"
+#include "lwip/sys.h"
+#include "led_driver.h"
+#include "web_server.h"
 
-static const char *TAG = "WI-FI_MANAGER";
+/* The examples use WiFi configuration that you can set via project configuration menu.
 
-// Function prototypes
-static esp_err_t wifi_init(void);
-static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
-static void connect_to_wifi(const char *ssid, const char *password);
-static void start_ap_mode(void);
+   If you'd rather not, just change the below entries to strings with
+   the config you want - ie #define EXAMPLE_ESP_WIFI_STA_SSID "mywifissid"
+*/
 
-// NVS load and save functions
-static esp_err_t load_wifi_config(char *ssid, size_t ssid_size, char *password, size_t password_size);
-esp_err_t save_wifi_config(const char *ssid, const char *password);
+/* STA Configuration */
+// #define WIFI_STA_SSID "ESP32_WIFI_SETUP"
+#define ESP_MAXIMUM_RETRY 3
 
-// TODO: 保存wifi配置后，提示保存成功（对话框或者通知），地址要回到主页，不要停留在提交的地址
-// TODO: 设备一直在尝试连接，应该有一个超时机制，超时后提示连接失败。并且通过按主板上的按键，可以重新配置wifi
-// TODO: 指示灯不正确，连接成功后，指示灯应该常亮，而不是闪烁。
+// #if CONFIG_ESP_WIFI_AUTH_OPEN
+// #define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_OPEN
+// #elif CONFIG_ESP_WIFI_AUTH_WEP
+// #define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WEP
+// #elif CONFIG_ESP_WIFI_AUTH_WPA_PSK
+// #define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WPA_PSK
+// #elif CONFIG_ESP_WIFI_AUTH_WPA2_PSK
+// #define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WPA2_PSK
+// #elif CONFIG_ESP_WIFI_AUTH_WPA_WPA2_PSK
+// #define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WPA_WPA2_PSK
+// #elif CONFIG_ESP_WIFI_AUTH_WPA3_PSK
+// #define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WPA3_PSK
+// #elif CONFIG_ESP_WIFI_AUTH_WPA2_WPA3_PSK
+// #define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WPA2_WPA3_PSK
+// #elif CONFIG_ESP_WIFI_AUTH_WAPI_PSK
+// #define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WAPI_PSK
+// #endif
 
-//  指示灯几种状态：
-//  绿色常亮（连接成功）
-//  绿色快闪（连接中）
-//  橙色常亮（连接失败，可能是信号不好，用户名密码错）
-//  橙色慢闪（热点模式，等待配网）
+// /* AP Configuration */
+#define WIFI_STA_SSID "ESP32_WIFI_SETUP"
+#define WIFI_STA_CHANNEL 6
+#define MAX_STA_CONN 1
 
-esp_err_t wifi_manager_init()
+/* The event group allows multiple bits for each event, but we only care about two events:
+ * - we are connected to the AP with an IP
+ * - we failed to connect after the maximum amount of retries */
+#define WIFI_CONNECTED_BIT BIT0
+#define WIFI_FAIL_BIT BIT1
+
+static const char *TAG_AP = "WIFI_MANAGER_AP";
+static const char *TAG_STA = "WIFI_MANAGER_STA";
+// static const char *TAG = "WIFI_MANAGER";
+
+static int s_retry_num = 0;
+
+/* FreeRTOS event group to signal when we are connected/disconnected */
+static EventGroupHandle_t s_wifi_event_group;
+static esp_netif_t *esp_netif_ap;
+static esp_netif_t *esp_netif_sta;
+
+static void wifi_event_handler(void *arg, esp_event_base_t event_base,
+                               int32_t event_id, void *event_data)
 {
-    ESP_LOGI(TAG, "wifi_manager_init()：开始初始化WiFi管理器");
-    // Initialize NVS
-    ESP_LOGI(TAG, "wifi_manager_init()：开始初始化NVS");
-    esp_err_t ret = nvs_flash_init();
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND)
+    if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_AP_STACONNECTED)
     {
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        ret = nvs_flash_init();
+        wifi_event_ap_staconnected_t *event = (wifi_event_ap_staconnected_t *)event_data;
+        ESP_LOGI(TAG_AP, "wifi_event_handler() 客户端 " MACSTR " 加入, AID=%d",
+                 MAC2STR(event->mac), event->aid);
     }
-    ESP_ERROR_CHECK(ret);
-
-    // Initialize WiFi
-    ESP_ERROR_CHECK(wifi_init());
-
-    char ssid[32], password[64]; // Adjust sizes as needed
-    if (load_wifi_config(ssid, sizeof(ssid), password, sizeof(password)) == ESP_OK)
+    else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_AP_STADISCONNECTED)
     {
-        connect_to_wifi(ssid, password);
+        wifi_event_ap_stadisconnected_t *event = (wifi_event_ap_stadisconnected_t *)event_data;
+        ESP_LOGI(TAG_AP, "wifi_event_handler() 客户端 " MACSTR " 离开, AID=%d",
+                 MAC2STR(event->mac), event->aid);
     }
-    else
+    else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START)
     {
-        ESP_LOGI(TAG, "未找到WiFi设置，转为WiFi热点模式，请连接设备WiFi后进行配置");
-        // Set LED to error state or AP mode indication
-        led_control(LED_COLOR_ORANGE, LED_MODE_BLINK_SLOW);
-        start_ap_mode();
-    }
-    return ESP_OK;
-}
-
-static esp_err_t wifi_init()
-{
-    ESP_LOGI(TAG, "wifi_init()：开始初始化WiFi");
-    // 1. 初始化网络接口和事件循环系统
-    // 调用 esp_netif_init() 函数初始化网络接口层，这是ESP-IDF框架中用于管理网络接口的基础组件。
-    ESP_ERROR_CHECK(esp_netif_init());
-
-    // 调用 esp_event_loop_create_default() 函数创建默认的事件循环，这是ESP-IDF框架中用于处理事件和消息的基础组件。
-    // 事件循环是处理系统异步事件（如Wi-Fi连接状态改变、获取IP地址等）的核心机制。
-    ESP_ERROR_CHECK(esp_event_loop_create_default());
-
-    // 2. 创建默认Wi-Fi Station接口
-    // esp_netif_create_default_wifi_sta() 函数创建一个默认的 Wi-Fi Station 接口。
-    // Wi-Fi Station 模式允许设备作为客户端连接到无线路由器或其他 Wi-Fi 热点。
-    esp_netif_create_default_wifi_sta();
-
-    // 3. 配置并初始化Wi-Fi驱动
-    // 初始化配置：声明并初始化一个 wifi_init_config_t 结构体变量 cfg，使用 WIFI_INIT_CONFIG_DEFAULT() 宏来填充默认的初始化配置。
-    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-
-    // 调用esp_wifi_init(&cfg) 根据上述配置初始化Wi-Fi驱动
-    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
-
-    // 4. 设置Wi-Fi参数
-    // 通过 esp_wifi_set_storage() 函数指定 Wi-Fi 配置（如SSID和密码）存储在 RAM 中
-    // 这意味着配置信息在设备重启后不会保留
-    ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
-
-    // 设置Wi-Fi模式为 STA（Station） 模式，表明设备将作为客户端连接到Wi-Fi网络。
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-
-    // 5. 注册事件处理器，分别注册了两个事件处理器
-    // 为所有Wi-Fi事件注册 wifi_event_handler 函数，这使得当任何 Wi-Fi 相关事件发生时，都会调用此处理函数。
-    // a. ESP_ERROR_CHECK 宏：
-    //      这是一个错误检查宏，它会检查括号内的函数调用返回值。
-    //      如果返回值表示错误（非零），它将引发一个panic（通常导致程序停止运行）,并打印错误信息
-    //      这确保了程序在遇到错误时能够及时响应。
-
-    // b. esp_event_handler_register()：
-    //      这是ESP-IDF（Espressif IoT Development Framework）中的一个函数
-    //      它用于注册事件处理器
-    //      它的主要作用是在事件管理系统中设置一个回调函数
-    //      当特定事件发生时，系统会调用这个函数
-
-    // c. WIFI_EVENT：
-    //      这是事件类型的枚举值，表示 Wi-Fi 事件源
-    //      这意味着注册的事件处理器将接收与 Wi-Fi 模块相关的事件
-    //      如连接状态变化、SSID扫描完成等
-
-    // d. ESP_EVENT_ANY_ID：
-    //      这是事件ID的一个特殊值，表示匹配任何ID
-    //      这意味着 wifi_event_handler 将被调用处理来自 WIFI_EVENT 源的所有可能的事件
-    //      而不仅仅是特定的一个或几个事件
-
-    // e. &wifi_event_handler：
-    //      这是事件处理函数的指针
-    //      当有匹配的事件发生时，ESP-IDF会调用这个函数。
-
-    // f. NULL：
-    //      这个参数通常用于传递一个上下文指针
-    //      可以是一个结构体指针或其他数据
-    //      以便在事件处理函数中访问额外的信息
-    //      在这里，由于传递了NULL，事件处理函数将不会收到额外的上下文数据。
-
-    // g. 总结：
-    //      这段代码的作用是将 wifi_event_handler 函数注册为一个事件处理器，用于处理所有类型的WiFi事件
-    //      当有WiFi事件发生时，esp_event_handler_register 确保 wifi_event_handler 会被正确调用
-    //      并在出现错误时通过 ESP_ERROR_CHECK 宏进行错误处理。
-    ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, NULL));
-
-    // 为IP事件中的 IP_EVENT_STA_GOT_IP 事件注册了相同的处理函数，即当 Station 接口成功获取到IP地址时，会触发此处理器执行。
-    ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &wifi_event_handler, NULL));
-
-    return ESP_OK;
-}
-
-static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
-{
-    if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START)
-    {
-        ESP_LOGI(TAG, "WiFi连接中…");
-        led_control(LED_COLOR_GREEN, LED_MODE_BLINK_SLOW); // Blink green
+        ESP_ERROR_CHECK(esp_wifi_connect());
+        ESP_LOGI(TAG_STA, "wifi_event_handler() STA 模式启动，开始连接 WiFi");
     }
     else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED)
     {
-        ESP_LOGI(TAG, "WiFi已断开，正在重试…");
-        esp_wifi_connect();
-        led_control(LED_COLOR_ORANGE, LED_MODE_ON); // Solid orange if disconnected
+        ESP_LOGE(TAG_STA, "wifi_event_handler() WiFi 连接错误，可能是因为 ssid 或密码错误，请重新配置");
+        // led 指示灯为橙色常亮模式
+        led_indicator_preempt_start(led_handle, ORANGE_ON);
+        // 关闭 WiFi
+        // ESP_ERROR_CHECK(esp_wifi_stop());
     }
     else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP)
     {
-        ESP_LOGI(TAG, "WiFi连接成功！");
-        led_control(LED_COLOR_GREEN, LED_MODE_ON); // Solid green
+        ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
+        ESP_LOGI(TAG_STA, "wifi_event_handler() 获得 IP 地址:" IPSTR, IP2STR(&event->ip_info.ip));
+        s_retry_num = 0;
+        xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
     }
 }
 
-static void connect_to_wifi(const char *ssid, const char *password)
+/* Initialize soft AP */
+esp_netif_t *wifi_init_softap()
 {
-    wifi_config_t wifi_config = {};
-    strncpy((char *)wifi_config.sta.ssid, ssid, sizeof(wifi_config.sta.ssid));
-    strncpy((char *)wifi_config.sta.password, password, sizeof(wifi_config.sta.password));
+    // esp_netif_t *esp_netif_ap = esp_netif_create_default_wifi_ap();
+    esp_netif_t *esp_netif_ap = esp_netif_create_default_wifi_ap();
 
-    ESP_LOGI(TAG, "正在连接WiFi：%s", ssid);
-    ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config));
-    ESP_ERROR_CHECK(esp_wifi_start());
-    esp_wifi_connect();
-}
-
-static void start_ap_mode()
-{
-    esp_netif_create_default_wifi_ap();
-
-    wifi_config_t ap_config = {
+    wifi_config_t wifi_ap_config = {
         .ap = {
-            .ssid = "ESP32_WIFI_SETUP",
-            .ssid_len = strlen("ESP32_WIFI_SETUP"),
-            // .password = 0,  // Change to your desired password
-            .max_connection = 4,
-            // .authmode = WIFI_AUTH_WPA_WPA2_PSK
-            .authmode = WIFI_AUTH_OPEN},
+            .ssid = WIFI_STA_SSID,
+            .ssid_len = strlen(WIFI_STA_SSID),
+            .channel = WIFI_STA_CHANNEL,
+            .max_connection = MAX_STA_CONN,
+            .authmode = WIFI_AUTH_OPEN,
+            .pmf_cfg = {
+                .required = false,
+            },
+        },
     };
 
-    // if (strlen(ap_config.ap.password) == 0) {
-    //     ap_config.ap.authmode = WIFI_AUTH_OPEN;
+    // if (strlen(password) == 0)
+    // {
+    //     wifi_ap_config.ap.authmode = WIFI_AUTH_OPEN;
     // }
 
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
-    ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_AP, &ap_config));
-    ESP_ERROR_CHECK(esp_wifi_start());
+    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &wifi_ap_config));
 
-    ESP_LOGI(TAG, "启用热点模式，连接WiFi：ESP32_WIFI_SETUP");
-    // Start the web server to allow WiFi configuration via a web page
-    start_web_server();
-    ESP_LOGI(TAG, "Web服务器已启动");
+    ESP_LOGI(TAG_AP, "wifi_init_softap() AP 模式开启，请连接 WiFi：%s",
+             WIFI_STA_SSID);
+    return esp_netif_ap;
+}
+
+/* Initialize wifi station */
+esp_netif_t *wifi_init_sta(char *ssid, char *password)
+{
+    // ssid = "myrouter";
+    // password = "AAA128128";
+    // 输出 正在连接 WiFi
+    ESP_LOGI(TAG_STA, "wifi_init_sta() 准备连接 WiFi: %s，密码：%s", ssid, password);
+
+    // 进入 sta 模式，led 指示灯为绿色快呼吸模式
+    led_indicator_preempt_start(led_handle, GREEN_FAST_BREATHE);
+
+    // esp_netif_t *esp_netif_sta = esp_netif_create_default_wifi_sta();
+    esp_netif_t *esp_netif_sta = esp_netif_create_default_wifi_sta();
+
+    wifi_config_t wifi_sta_config = {
+        .sta = {
+            // .ssid = ssid,
+            // .password = password,
+            .scan_method = WIFI_ALL_CHANNEL_SCAN,
+            .failure_retry_cnt = ESP_MAXIMUM_RETRY,
+            /* Authmode threshold resets to WPA2 as default if password matches WPA2 standards (pasword len => 8).
+             * If you want to connect the device to deprecated WEP/WPA networks, Please set the threshold value
+             * to WIFI_AUTH_WEP/WIFI_AUTH_WPA_PSK and set the password with length and format matching to
+             * WIFI_AUTH_WEP/WIFI_AUTH_WPA_PSK standards.
+             */
+            .threshold.authmode = WIFI_AUTH_WPA2_PSK,
+            // .sae_pwe_h2e = WPA3_SAE_PWE_BOTH,
+        },
+    };
+    strncpy((char *)wifi_sta_config.sta.ssid, ssid, sizeof(wifi_sta_config.sta.ssid) - 1);
+    strncpy((char *)wifi_sta_config.sta.password, password, sizeof(wifi_sta_config.sta.password) - 1);
+
+    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_sta_config));
+
+    ESP_LOGI(TAG_STA, "wifi_init_sta() WiFi STA 初始化完成");
+
+    return esp_netif_sta;
 }
 
 static esp_err_t load_wifi_config(char *ssid, size_t ssid_size, char *password, size_t password_size)
@@ -205,75 +198,120 @@ static esp_err_t load_wifi_config(char *ssid, size_t ssid_size, char *password, 
         return ret;
 
     ret = nvs_get_str(nvs_handle, "ssid", ssid, &ssid_size);
-    if (ret != ESP_OK)
+    if (ret == ESP_OK)
     {
-        nvs_close(nvs_handle);
-        return ret;
+        ret = nvs_get_str(nvs_handle, "password", password, &password_size);
     }
 
-    ret = nvs_get_str(nvs_handle, "password", password, &password_size);
     nvs_close(nvs_handle);
-
     return ret;
 }
 
-esp_err_t save_wifi_config(const char *ssid, const char *password)
+esp_err_t wifi_manager_init(void)
 {
-    nvs_handle_t nvs_handle;
-    esp_err_t ret = nvs_open("wifi_config", NVS_READWRITE, &nvs_handle);
-    if (ret != ESP_OK)
-        return ret;
+    ESP_ERROR_CHECK(esp_netif_init());
+    ESP_ERROR_CHECK(esp_event_loop_create_default());
 
-    ret = nvs_set_str(nvs_handle, "ssid", ssid);
-    if (ret != ESP_OK)
+    /* Initialize event group */
+    s_wifi_event_group = xEventGroupCreate();
+
+    /* Register Event handler */
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT,
+                                                        ESP_EVENT_ANY_ID,
+                                                        &wifi_event_handler,
+                                                        NULL,
+                                                        NULL));
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT,
+                                                        IP_EVENT_STA_GOT_IP,
+                                                        &wifi_event_handler,
+                                                        NULL,
+                                                        NULL));
+
+    /*Initialize WiFi */
+    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+
+    char ssid[32] = {0};
+    char password[64] = {0};
+    if (load_wifi_config(ssid, sizeof(ssid), password, sizeof(password)) == ESP_OK)
     {
-        nvs_close(nvs_handle);
-        return ret;
-    }
+        ESP_LOGI(TAG_STA, "NVS 发现 WiFi 配置，启动 STA 模式");
+        ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
 
-    ret = nvs_set_str(nvs_handle, "password", password);
-    nvs_commit(nvs_handle);
-    nvs_close(nvs_handle);
-
-    return ret;
-}
-
-// Function to clear saved WiFi settings
-esp_err_t clear_wifi_settings()
-{
-    nvs_handle_t nvs_handle;
-    esp_err_t err;
-
-    // Open NVS namespace for WiFi settings
-    err = nvs_open("wifi_config", NVS_READWRITE, &nvs_handle);
-    if (err != ESP_OK)
-    {
-        ESP_LOGE(TAG, "Error (%s) opening NVS handle!", esp_err_to_name(err));
-        return err;
+        /* Initialize STA */
+        esp_netif_ap = wifi_init_sta(ssid, password);
     }
     else
     {
-        // Erase the key under which WiFi settings are saved
-        err = nvs_erase_all(nvs_handle);
-        if (err != ESP_OK)
-        {
-            ESP_LOGE(TAG, "清除WiFi设置失败%s", esp_err_to_name(err));
-        }
-        else
-        {
-            ESP_LOGI(TAG, "WiFi设置已清除");
-        }
+        ESP_LOGI(TAG_AP, "NVS 未发现 WiFi 配置，启动 AP 模式");
+        // 进入 ap 模式，led 指示灯为橙色慢呼吸模式
+        led_indicator_preempt_start(led_handle, ORANGE_SLOW_BREATHE);
+        ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
 
-        // Commit changes
-        err = nvs_commit(nvs_handle);
-        if (err != ESP_OK)
-        {
-            ESP_LOGE(TAG, "提交改变失败：%s", esp_err_to_name(err));
-        }
-
-        // Close NVS handle
-        nvs_close(nvs_handle);
+        /* Initialize AP */
+        esp_netif_sta = wifi_init_softap();
+        ESP_ERROR_CHECK(start_web_server());
     }
 
-    return err;
+    // /* Initialize AP */
+    // ESP_LOGI(TAG_AP, "ESP_WIFI_MODE_AP");
+    // esp_netif_t *esp_netif_ap = wifi_init_softap();
+
+    // /* Initialize STA */
+    // ESP_LOGI(TAG_STA, "ESP_WIFI_MODE_STA");
+    // esp_netif_t *esp_netif_sta = wifi_init_sta();
+
+    /* Start WiFi */
+    ESP_ERROR_CHECK(esp_wifi_start());
+
+    /*
+     * Wait until either the connection is established (WIFI_CONNECTED_BIT) or
+     * connection failed for the maximum number of re-tries (WIFI_FAIL_BIT).
+     * The bits are set by event_handler() (see above)
+     */
+    EventBits_t bits = xEventGroupWaitBits(s_wifi_event_group,
+                                           WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
+                                           pdFALSE,
+                                           pdFALSE,
+                                           portMAX_DELAY);
+    /* xEventGroupWaitBits() returns the bits before the call returned,
+     * hence we can test which event actually happened. */
+    if (bits & WIFI_CONNECTED_BIT)
+    {
+        ESP_LOGI(TAG_STA, "xEventGroupWaitBits() 连接 WiFi 网络 SSID:%s password:%s",
+                 ssid, password);
+        // 成功连接到 WiFi，led 指示灯为绿色常亮模式
+        led_indicator_preempt_start(led_handle, GREEN_ON);
+    }
+    else if (bits & WIFI_FAIL_BIT)
+    {
+        ESP_LOGI(TAG_STA, "xEventGroupWaitBits() 连接 WiFi 失败 SSID:%s, password:%s",
+                 ssid, password);
+        // 无法连接到 WiFi，led 指示灯为橙色常亮模式
+        led_indicator_preempt_start(led_handle, ORANGE_ON);
+    }
+    else
+    {
+        // 未知事件，led 指示灯为红色常亮模式
+        led_indicator_preempt_start(led_handle, RED_ON);
+        ESP_LOGE(TAG_STA, "xEventGroupWaitBits() 未知事件");
+        return ESP_FAIL;
+    }
+
+    // /* Set sta as the default interface */
+    // esp_netif_set_default_netif(esp_netif_ap);
+
+    // /* Enable napt on the AP netif */
+    // if (esp_netif_napt_enable(esp_netif_ap) != ESP_OK)
+    // {
+    //     ESP_LOGE(TAG_STA, "NAPT not enabled on the netif: %p", esp_netif_ap);
+    // }
+
+    return ESP_OK;
 }
+
+// esp_err_t check_wifi_config(char *ssid, char *password)
+// {
+
+//     return ESP_OK;
+// }
