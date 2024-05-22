@@ -14,7 +14,8 @@ static const char *TAG = "main";
 void wifi_reset_button_long_press(void *arg, void *usr_data)
 {
     ESP_LOGI(TAG, "WIFI_RESET_BUTTON_LONG_PRESS_START");
-    led_indicator_preempt_start(led_handle, ORANGE_SLOW_BREATHE);
+    ESP_ERROR_CHECK(clear_wifi_settings_in_nvs());
+    esp_restart();
 }
 
 void app_main(void)

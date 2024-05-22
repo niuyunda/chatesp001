@@ -74,14 +74,12 @@
 
 static const char *TAG_AP = "WIFI_MANAGER_AP";
 static const char *TAG_STA = "WIFI_MANAGER_STA";
-// static const char *TAG = "WIFI_MANAGER";
+static const char *TAG = "WIFI_MANAGER";
 
 static int s_retry_num = 0;
 
 /* FreeRTOS event group to signal when we are connected/disconnected */
 static EventGroupHandle_t s_wifi_event_group;
-static esp_netif_t *esp_netif_ap;
-static esp_netif_t *esp_netif_sta;
 
 static void wifi_event_handler(void *arg, esp_event_base_t event_base,
                                int32_t event_id, void *event_data)
@@ -121,10 +119,10 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
 }
 
 /* Initialize soft AP */
-esp_netif_t *wifi_init_softap()
+static esp_err_t wifi_init_softap()
 {
     // esp_netif_t *esp_netif_ap = esp_netif_create_default_wifi_ap();
-    esp_netif_t *esp_netif_ap = esp_netif_create_default_wifi_ap();
+    esp_netif_create_default_wifi_ap();
 
     wifi_config_t wifi_ap_config = {
         .ap = {
@@ -148,14 +146,12 @@ esp_netif_t *wifi_init_softap()
 
     ESP_LOGI(TAG_AP, "wifi_init_softap() AP 模式开启，请连接 WiFi：%s",
              WIFI_STA_SSID);
-    return esp_netif_ap;
+    return ESP_OK;
 }
 
 /* Initialize wifi station */
-esp_netif_t *wifi_init_sta(char *ssid, char *password)
+static esp_err_t wifi_init_sta(char *ssid, char *password)
 {
-    // ssid = "myrouter";
-    // password = "AAA128128";
     // 输出 正在连接 WiFi
     ESP_LOGI(TAG_STA, "wifi_init_sta() 准备连接 WiFi: %s，密码：%s", ssid, password);
 
@@ -163,7 +159,7 @@ esp_netif_t *wifi_init_sta(char *ssid, char *password)
     led_indicator_preempt_start(led_handle, GREEN_FAST_BREATHE);
 
     // esp_netif_t *esp_netif_sta = esp_netif_create_default_wifi_sta();
-    esp_netif_t *esp_netif_sta = esp_netif_create_default_wifi_sta();
+    esp_netif_create_default_wifi_sta();
 
     wifi_config_t wifi_sta_config = {
         .sta = {
@@ -187,7 +183,7 @@ esp_netif_t *wifi_init_sta(char *ssid, char *password)
 
     ESP_LOGI(TAG_STA, "wifi_init_sta() WiFi STA 初始化完成");
 
-    return esp_netif_sta;
+    return ESP_OK;
 }
 
 static esp_err_t load_wifi_config(char *ssid, size_t ssid_size, char *password, size_t password_size)
@@ -239,7 +235,7 @@ esp_err_t wifi_manager_init(void)
         ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
 
         /* Initialize STA */
-        esp_netif_ap = wifi_init_sta(ssid, password);
+        ESP_ERROR_CHECK(wifi_init_sta(ssid, password));
     }
     else
     {
@@ -249,7 +245,7 @@ esp_err_t wifi_manager_init(void)
         ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
 
         /* Initialize AP */
-        esp_netif_sta = wifi_init_softap();
+        ESP_ERROR_CHECK(wifi_init_softap());
         ESP_ERROR_CHECK(start_web_server());
     }
 
@@ -294,7 +290,7 @@ esp_err_t wifi_manager_init(void)
     {
         // 未知事件，led 指示灯为红色常亮模式
         led_indicator_preempt_start(led_handle, RED_ON);
-        ESP_LOGE(TAG_STA, "xEventGroupWaitBits() 未知事件");
+        ESP_LOGE(TAG_STA, "xEventGroupWaitBits() 发生未知事件");
         return ESP_FAIL;
     }
 
@@ -310,8 +306,31 @@ esp_err_t wifi_manager_init(void)
     return ESP_OK;
 }
 
-// esp_err_t check_wifi_config(char *ssid, char *password)
-// {
+esp_err_t clear_wifi_settings_in_nvs(void)
+{
+    nvs_handle_t nvs_handle;
+    esp_err_t ret = nvs_open("wifi_config", NVS_READWRITE, &nvs_handle);
+    if (ret != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Error (%s) opening NVS handle!", esp_err_to_name(ret));
+        return ret;
+    }
 
-//     return ESP_OK;
-// }
+    ret = nvs_erase_all(nvs_handle);
+    if (ret == ESP_OK)
+    {
+        ret = nvs_commit(nvs_handle);
+    }
+    else
+    {
+        ESP_LOGE(TAG, "Failed to clear WiFi settings: %s", esp_err_to_name(ret));
+    }
+
+    nvs_close(nvs_handle);
+    if (ret == ESP_OK)
+    {
+        ESP_LOGI(TAG, "WiFi settings cleared");
+    }
+
+    return ret;
+}
