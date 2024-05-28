@@ -20,7 +20,7 @@ extern "C"
         ORANGE_ON,
         ORANGE_SLOW_BREATHE,
         RED_ON,
-        LOOP_RED_TO_BLUE,
+        RED_TO_BLUE,
         ANIMATE_COLOR_TRANSITION,
         BLINK_MAX, /**< INVALIED type */
     } led_indicator_blink_type_t;

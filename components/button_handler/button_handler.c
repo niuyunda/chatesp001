@@ -8,7 +8,7 @@
 
 #define BUTTON_LONG_PRESS_TIME_MS 5000 // 5秒长按时间
 #define WIFI_RESET_BUTTON_GPIO GPIO_NUM_0
-#define MAIN_FUNCTION_BUTTON_GPIO GPIO_NUM_48
+#define MAIN_FUNCTION_BUTTON_GPIO GPIO_NUM_42
 
 static const char *TAG = "BUTTON";
 
@@ -42,8 +42,8 @@ esp_err_t button_init(void)
         .long_press_time = CONFIG_BUTTON_LONG_PRESS_TIME_MS,
         .short_press_time = CONFIG_BUTTON_SHORT_PRESS_TIME_MS,
         .gpio_button_config = {
-            .gpio_num = WIFI_RESET_BUTTON_GPIO,
-            .active_level = 0,
+            .gpio_num = MAIN_FUNCTION_BUTTON_GPIO,
+            .active_level = 1,
         },
     };
     main_function_button = iot_button_create(&main_function_button_cfg);

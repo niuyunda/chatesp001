@@ -54,7 +54,13 @@
         "esp_system.h": "c",
         "web_server.h": "c",
         "esp_wifi_he_types.h": "c",
-        "esp_wifi_types_private.h": "c"
+        "esp_wifi_types_private.h": "c",
+        "button_gpio.h": "c",
+        "sdmmc_cmd.h": "c",
+        "sdkconfig.h": "c",
+        "i2s_pdm.h": "c",
+        "cstdio": "c",
+        "unistd.h": "c"
     },
     "idf.flashType": "UART"
 }

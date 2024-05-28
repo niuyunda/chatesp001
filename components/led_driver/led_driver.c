@@ -96,7 +96,15 @@ const blink_step_t orange_fast_breathe[] = {
 // 闪烁模式
 
 // 变色模式
-// 定义一个颜色渐变，让指示灯从红色渐变到蓝色，并循环执行
+// 从红色变成蓝色
+const blink_step_t red_to_blue[] = {
+    {LED_BLINK_RGB, RED, 0},          // step1: set to red color 0 ms
+    {LED_BLINK_RGB_RING, BLUE, 1000}, // step2: fade from red to blue 4000ms
+    {LED_BLINK_RGB_RING, RED, 1000},  // step3: fade from blue to red 4000ms
+    {LED_BLINK_LOOP, 0, 0},           // step4: loop from step1
+};
+
+// 定义一个颜色渐变，并循环执行
 const blink_step_t animate_led_color_transition_loop[] = {
     {LED_BLINK_RGB, CRIMSON, 0},
     {LED_BLINK_RGB_RING, BLUE, 1000},
@@ -114,6 +122,7 @@ blink_step_t const *led_mode[] = {
     [ORANGE_ON] = orange_on,
     [ORANGE_SLOW_BREATHE] = orange_slow_breathe,
     [RED_ON] = red_on,
+    [RED_TO_BLUE] = red_to_blue,
     [ANIMATE_COLOR_TRANSITION] = animate_led_color_transition_loop,
     [BLINK_MAX] = NULL,
 };

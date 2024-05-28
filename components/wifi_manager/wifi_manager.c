@@ -241,7 +241,7 @@ esp_err_t wifi_manager_init(void)
     {
         ESP_LOGI(TAG_AP, "NVS 未发现 WiFi 配置，启动 AP 模式");
         // 进入 ap 模式，led 指示灯为橙色慢呼吸模式
-        led_indicator_preempt_start(led_handle, ORANGE_SLOW_BREATHE);
+        led_indicator_start(led_handle, ORANGE_SLOW_BREATHE);
         ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
 
         /* Initialize AP */
