@@ -7,7 +7,6 @@
 #include "iot_button.h"
 #include "button_handler.h"
 #include "wifi_manager.h"
-#include "nvs_module.h"
 #include "file_system.h"
 #include "audio_input.h"
 
@@ -45,10 +44,7 @@ void app_main(void)
 {
     ESP_LOGI(TAG, "启动设备，正在初始化...");
 
-    // 初始化 NVS
-    ESP_ERROR_CHECK(nvs_init());
-
-    // 初始化文件系统
+    // 初始化文件系统，包括 NVS 和 SPIFFS
     ESP_ERROR_CHECK(file_system_init());
 
     // LED部分

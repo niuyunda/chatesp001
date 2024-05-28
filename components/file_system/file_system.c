@@ -1,11 +1,3 @@
-/* SPIFFS filesystem example.
-   This example code is in the Public Domain (or CC0 licensed, at your option.)
-
-   Unless required by applicable law or agreed to in writing, this
-   software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-   CONDITIONS OF ANY KIND, either express or implied.
-*/
-
 #include <stdio.h>
 #include <string.h>
 #include <sys/unistd.h>
@@ -13,12 +5,13 @@
 #include "esp_err.h"
 #include "esp_log.h"
 #include "esp_spiffs.h"
+#include "nvs_flash.h"
 
 static const char *TAG = "FILE_SYSTEM";
 
 #define PATH "/spiffs"
 
-esp_err_t file_system_init(void)
+static esp_err_t spiffs_init(void)
 {
     ESP_LOGI(TAG, "Initializing SPIFFS");
 
@@ -94,57 +87,31 @@ esp_err_t file_system_init(void)
         }
     }
 
-    // // Use POSIX and C standard library functions to work with files.
-    // // First create a file.
-    // ESP_LOGI(TAG, "Opening file");
-    // FILE *f = fopen("/spiffs/hello.txt", "w");
-    // if (f == NULL)
-    // {
-    //     ESP_LOGE(TAG, "Failed to open file for writing");
-    //     return ESP_OK;
-    // }
-    // fprintf(f, "Hello World!\n");
-    // fclose(f);
-    // ESP_LOGI(TAG, "File written");
-
-    // // Check if destination file exists before renaming
-    // struct stat st;
-    // if (stat("/spiffs/foo.txt", &st) == 0)
-    // {
-    //     // Delete it if it exists
-    //     unlink("/spiffs/foo.txt");
-    // }
-
-    // // Rename original file
-    // ESP_LOGI(TAG, "Renaming file");
-    // if (rename("/spiffs/hello.txt", "/spiffs/foo.txt") != 0)
-    // {
-    //     ESP_LOGE(TAG, "Rename failed");
-    //     return ESP_OK;
-    // }
-
-    // // Open renamed file for reading
-    // ESP_LOGI(TAG, "Reading file");
-    // f = fopen("/spiffs/foo.txt", "r");
-    // if (f == NULL)
-    // {
-    //     ESP_LOGE(TAG, "Failed to open file for reading");
-    //     return ESP_OK;
-    // }
-    // char line[64];
-    // fgets(line, sizeof(line), f);
-    // fclose(f);
-    // // strip newline
-    // char *pos = strchr(line, '\n');
-    // if (pos)
-    // {
-    //     *pos = '\0';
-    // }
-    // ESP_LOGI(TAG, "Read from file: '%s'", line);
-
-    // // All done, unmount partition and disable SPIFFS
-    // esp_vfs_spiffs_unregister(conf.partition_label);
-    // ESP_LOGI(TAG, "SPIFFS unmounted");
-
     return ret;
+}
+
+static esp_err_t nvs_init(void)
+{
+    ESP_LOGI(TAG, "Initializing NVS");
+
+    // Initialize NVS
+    esp_err_t err = nvs_flash_init();
+    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND)
+    {
+        // NVS partition was truncated and needs to be erased
+        // Retry nvs_flash_init
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        err = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(err);
+
+    return ESP_OK;
+}
+
+esp_err_t file_system_init(void)
+{
+    nvs_init();
+    spiffs_init();
+
+    return ESP_OK;
 }
