@@ -62,7 +62,8 @@
         "cstdio": "c",
         "unistd.h": "c",
         "stat.h": "c",
-        "http_handler.h": "c"
+        "http_handler.h": "c",
+        "i2s_tdm.h": "c"
     },
     "idf.flashType": "UART"
 }

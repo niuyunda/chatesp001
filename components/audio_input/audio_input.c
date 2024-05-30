@@ -1,6 +1,3 @@
-// #include <stdio.h>
-// #include <string.h>
-// #include <math.h>
 #include <sys/unistd.h>
 #include <sys/stat.h>
 #include "esp_log.h"
@@ -16,19 +13,17 @@
 #define BIT_SAMPLE I2S_DATA_BIT_WIDTH_16BIT
 #define SAMPLE_RATE 16000
 #define NUM_CHANNELS (1) // For mono recording only!
-
-static const char *TAG = "AUDIO_INPUT";
-
-#define SPI_DMA_CHAN SPI_DMA_CH_AUTO
 #define SAMPLE_SIZE (BIT_SAMPLE * 1024)
 #define BYTE_RATE (SAMPLE_RATE * (BIT_SAMPLE / 8)) * NUM_CHANNELS
+
 #define RECORD_FILE_PATH "/spiffs/record.wav"
+
+static const char *TAG = "AUDIO_INPUT";
 
 i2s_chan_handle_t rx_handle = NULL;
 
 static int16_t i2s_readraw_buff[SAMPLE_SIZE];
 size_t bytes_read;
-const int WAVE_HEADER_SIZE = 44;
 
 esp_err_t init_microphone(void)
 {

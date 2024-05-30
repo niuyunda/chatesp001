@@ -9,6 +9,7 @@
 #include "wifi_manager.h"
 #include "file_system.h"
 #include "audio_input.h"
+#include "audio_output.h"
 #include "http_handler.h"
 
 static const char *TAG = "MAIN";
@@ -67,6 +68,7 @@ void app_main(void)
 
     // 初始化音频
     ESP_ERROR_CHECK(init_microphone());
+    ESP_ERROR_CHECK(init_speaker());
 
     // // 启动录音任务
     // xTaskCreate(record_task, "record_task", 4096, NULL, 5, NULL);

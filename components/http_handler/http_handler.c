@@ -1,22 +1,22 @@
-// #include "app_http_asr.h"
-// #include "app_spiffs.h"
-// #include "hal_i2s.h"
 #include "esp_http_client.h"
 #include "esp_log.h"
 #include "esp_err.h"
-// #include "json_parser.h"
-#include "http_handler.h"
 #include "cJSON.h"
+#include "audio_output.h"
+#include "http_handler.h"
+#include "driver/gpio.h"
 
 // #define BOUNDARY "--------WebKitFormBoundary7MA4YWxkTrZu0gW"
 // #define FILE_FIELD_NAME "file"
 // #define FILENAME "record.wav"
 
+#define MAX98357A_SD GPIO_NUM_12
+
 static const char *TAG = "HTTP_HANDLER";
 
 // 我的服务器
 // char *access_token = "";
-char *url = "http://192.168.0.10:8000/llm/";
+char *url = "http://192.168.0.10:8000/chat/";
 
 char chat_result[1024] = {};
 
@@ -24,37 +24,34 @@ esp_err_t http_event_handler(esp_http_client_event_t *evt)
 {
     if (evt->event_id == HTTP_EVENT_ON_DATA)
     {
-        // 使用ESP_LOGI宏打印接收到的数据内容到日志，方便调试。
-        ESP_LOGI(TAG, "%.*s", evt->data_len, (char *)evt->data);
+        // // 使用ESP_LOGI宏打印接收到的数据内容到日志，方便调试。
+        // ESP_LOGI(TAG, "%.*s", evt->data_len, (char *)evt->data);
 
-        // 使用 cJSON 解析接收到的数据
-        // 解析 JSON 字符串
-        cJSON *json = cJSON_Parse((char *)evt->data);
+        // // 使用 cJSON 解析接收到的数据
+        // // 解析 JSON 字符串
+        // cJSON *json = cJSON_Parse((char *)evt->data);
 
-        // 获取并打印 "result" 的值
-        const cJSON *result = cJSON_GetObjectItemCaseSensitive(json, "result");
-        if (cJSON_IsString(result) && (result->valuestring != NULL))
-        {
-            strcpy(chat_result, result->valuestring);
-        }
+        // // 获取并打印 "result" 的值
+        // const cJSON *result = cJSON_GetObjectItemCaseSensitive(json, "result");
+        // if (cJSON_IsString(result) && (result->valuestring != NULL))
+        // {
+        //     strcpy(chat_result, result->valuestring);
+        // }
 
-        // 清理 cJSON 对象
-        cJSON_Delete(json);
+        // // 清理 cJSON 对象
+        // cJSON_Delete(json);
+
+        ESP_LOGI(TAG, "Received length:%d", evt->data_len);
+
+        //  i2s pcm
+        i2s_channel_write(tx_handle, (char *)evt->data, evt->data_len, NULL, portMAX_DELAY);
     }
     // 当 evt -> event_id 等于 HTTP_EVENT_ON_FINISH，表示 HTTP 请求完成。
     else if (evt->event_id == HTTP_EVENT_ON_FINISH)
     {
         ESP_LOGI(TAG, "http_event_handler() HTTP_EVENT_ON_FINISH");
-        // // 检查全局指针xLlmQuestion是否非空，确保有一个有效的消息队列可以发送数据
-        // if (xLlmQuestion != NULL)
-        // {
-        //     // 如果队列存在，通过 xQueueSend 函数将解析得到的语音识别结果 chat_result 发送到队列中
-        //     // 并设置超时时间为100个ticks（具体时间取决于系统tick频率）。
-        //     xQueueSend(xLlmQuestion, chat_result, 100);
-
-        //     // 通过 memset 函数将 chat_result 数组清零，以便下一次使用。
-        //     memset(chat_result, 0, sizeof(chat_result));
-        // }
+        ESP_ERROR_CHECK(i2s_channel_disable(tx_handle));
+        gpio_set_level(MAX98357A_SD, 0);
     }
 
     return ESP_OK;
@@ -62,10 +59,6 @@ esp_err_t http_event_handler(esp_http_client_event_t *evt)
 
 esp_err_t audio_upload(int time)
 {
-    // 调用hal_i2s_record函数，以指定的时间（time参数）
-    // 录制音频数据到 SPIFFS 文件系统中的 /spiffs/record.wav 文件。
-    // hal_i2s_record("/spiffs/record.wav", time);
-
     // 打开录制的.wav文件
     // 如果文件打开失败，会通过ESP_LOGI打印一条错误信息
     FILE *wav_file = fopen("/spiffs/record.wav", "rb");
@@ -180,6 +173,12 @@ esp_err_t audio_upload(int time)
     // free(post_data_start);
     // free(post_data_end);
     esp_http_client_cleanup(client);
+
+    // 开启 I2S 通道
+    i2s_channel_enable((tx_handle));
+
+    // 将 MAX98357A_SD 设置为 HIGH，使 MAX98357A 进入正常工作状态
+    gpio_set_level(MAX98357A_SD, 1);
 
     return err;
 }
