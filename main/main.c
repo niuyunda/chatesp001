@@ -25,8 +25,12 @@ void main_button_press_down(void *arg, void *usr_data)
 {
     ESP_LOGI(TAG, "FUNCTION_BUTTON_PRESS_DOWN");
     // led 开始进入变色模式
+    // TODO:一按键就死机
     // led_indicator_preempt_start(led_handle, RED_TO_BLUE);
+
     // 开始录音
+    // TODO: 为了方便调试，暂时只录制 3 秒，之后要改成实际按下去的时间
+    // TODO: 没联网的时候不要录音？
     ESP_ERROR_CHECK(record_wav(3));
 }
 
