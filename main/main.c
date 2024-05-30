@@ -47,20 +47,20 @@ void app_main(void)
     // 初始化文件系统，包括 NVS 和 SPIFFS
     ESP_ERROR_CHECK(file_system_init());
 
-    // LED部分
-    // LED部分
-    // LED部分
+    // 初始化 LED
     ESP_ERROR_CHECK(led_init());
 
-    // 按键部分
-    // 按键部分
-    // 按键部分
+    // 初始化按键
     ESP_ERROR_CHECK(button_init());
+    // 注册按键回调函数
+    // 长按 WIFI_RESET_BUTTON 按键，清除 WiFi 设置并重启设备
     iot_button_register_cb(wifi_reset_button, BUTTON_LONG_PRESS_START, wifi_reset_button_long_press_start, NULL);
+    // 按下 FUNCTION_BUTTON 按键，开始录音
     iot_button_register_cb(main_function_button, BUTTON_PRESS_DOWN, main_button_press_down, NULL);
+    // 松开 FUNCTION_BUTTON 按键，停止录音并上传到服务器
     iot_button_register_cb(main_function_button, BUTTON_PRESS_UP, main_button_press_up, NULL);
 
-    // 初始化WiFi
+    // 初始化 WiFi
     ESP_ERROR_CHECK(wifi_manager_init());
 
     // 初始化音频
