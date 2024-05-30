@@ -11,7 +11,7 @@
     "idf.openOcdConfigs": [
         "board/esp32s3-bridge.cfg"
     ],
-    "idf.portWin": "COM10",
+    "idf.portWin": "COM5",
     "idf.pythonBinPathWin": "c:\\Users\\niuyu\\.espressif\\python_env\\idf5.2_py3.11_env\\Scripts\\python.exe",
     "idf.toolsPathWin": "c:\\Users\\niuyu\\.espressif",
     "MicroPython.executeButton": [
@@ -58,11 +58,7 @@
         "button_gpio.h": "c",
         "sdmmc_cmd.h": "c",
         "sdkconfig.h": "c",
-        "i2s_pdm.h": "c",
-        "cstdio": "c",
-        "unistd.h": "c",
-        "stat.h": "c",
-        "http_handler.h": "c"
+        "i2s_pdm.h": "c"
     },
     "idf.flashType": "UART"
 }

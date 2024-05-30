@@ -1,3 +1,3 @@
 idf_component_register(SRCS "main.c"
                        INCLUDE_DIRS "."
-                       REQUIRES led_driver button_handler wifi_manager file_system audio_input)
+                       REQUIRES audio_input button_handler file_system http_handler led_driver web_server wifi_manager)
