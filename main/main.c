@@ -9,8 +9,10 @@
 #include "wifi_manager.h"
 #include "file_system.h"
 #include "audio_input.h"
+#include "audio_output.h"
+#include "http_handler.h"
 
-static const char *TAG = "main";
+static const char *TAG = "MAIN";
 
 void wifi_reset_button_long_press_start(void *arg, void *usr_data)
 {
@@ -23,8 +25,12 @@ void main_button_press_down(void *arg, void *usr_data)
 {
     ESP_LOGI(TAG, "FUNCTION_BUTTON_PRESS_DOWN");
     // led 开始进入变色模式
-    led_indicator_preempt_start(led_handle, RED_TO_BLUE);
+    // TODO:一按键就死机
+    // led_indicator_preempt_start(led_handle, RED_TO_BLUE);
+
     // 开始录音
+    // TODO: 为了方便调试，暂时只录制 3 秒，之后要改成实际按下去的时间
+    // TODO: 没联网的时候不要录音？
     ESP_ERROR_CHECK(record_wav(3));
 }
 
@@ -32,12 +38,13 @@ void main_button_press_up(void *arg, void *usr_data)
 {
     ESP_LOGI(TAG, "FUNCTION_BUTTON_PRESS_UP");
     // led 停止变色模式
-    led_indicator_preempt_stop(led_handle, RED_TO_BLUE);
+    // led_indicator_preempt_stop(led_handle, RED_TO_BLUE);
 
     // 停止录音
     // audio_record_stop();
+
     // 录音上传到服务器
-    // audio_upload();
+    ESP_ERROR_CHECK(audio_upload());
 }
 
 void app_main(void)
@@ -64,7 +71,8 @@ void app_main(void)
     ESP_ERROR_CHECK(wifi_manager_init());
 
     // 初始化音频
-    // ESP_ERROR_CHECK(init_microphone());
+    ESP_ERROR_CHECK(init_microphone());
+    ESP_ERROR_CHECK(init_speaker());
 
     // // 启动录音任务
     // xTaskCreate(record_task, "record_task", 4096, NULL, 5, NULL);

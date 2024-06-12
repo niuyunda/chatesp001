@@ -105,7 +105,7 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
     {
         ESP_LOGE(TAG_STA, "wifi_event_handler() WiFi 连接错误，可能是因为 ssid 或密码错误，请重新配置");
         // led 指示灯为橙色常亮模式
-        led_indicator_preempt_start(led_handle, ORANGE_ON);
+        led_indicator_start(led_handle, ORANGE_ON);
         // 关闭 WiFi
         // ESP_ERROR_CHECK(esp_wifi_stop());
     }
@@ -121,6 +121,9 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
 /* Initialize soft AP */
 static esp_err_t wifi_init_softap()
 {
+    // 进入 ap 模式，led 指示灯为橙色慢呼吸模式
+    led_indicator_start(led_handle, ORANGE_SLOW_BREATHE);
+
     // esp_netif_t *esp_netif_ap = esp_netif_create_default_wifi_ap();
     esp_netif_create_default_wifi_ap();
 
@@ -156,7 +159,7 @@ static esp_err_t wifi_init_sta(char *ssid, char *password)
     ESP_LOGI(TAG_STA, "wifi_init_sta() 准备连接 WiFi: %s，密码：%s", ssid, password);
 
     // 进入 sta 模式，led 指示灯为绿色快呼吸模式
-    led_indicator_preempt_start(led_handle, GREEN_FAST_BREATHE);
+    led_indicator_start(led_handle, GREEN_FAST_BREATHE);
 
     // esp_netif_t *esp_netif_sta = esp_netif_create_default_wifi_sta();
     esp_netif_create_default_wifi_sta();
@@ -240,8 +243,6 @@ esp_err_t wifi_manager_init(void)
     else
     {
         ESP_LOGI(TAG_AP, "NVS 未发现 WiFi 配置，启动 AP 模式");
-        // 进入 ap 模式，led 指示灯为橙色慢呼吸模式
-        led_indicator_start(led_handle, ORANGE_SLOW_BREATHE);
         ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
 
         /* Initialize AP */
@@ -276,6 +277,7 @@ esp_err_t wifi_manager_init(void)
     {
         ESP_LOGI(TAG_STA, "xEventGroupWaitBits() 连接 WiFi 网络 SSID:%s password:%s",
                  ssid, password);
+
         // 成功连接到 WiFi，led 指示灯为绿色常亮模式
         led_indicator_preempt_start(led_handle, GREEN_ON);
     }
@@ -283,6 +285,7 @@ esp_err_t wifi_manager_init(void)
     {
         ESP_LOGI(TAG_STA, "xEventGroupWaitBits() 连接 WiFi 失败 SSID:%s, password:%s",
                  ssid, password);
+
         // 无法连接到 WiFi，led 指示灯为橙色常亮模式
         led_indicator_preempt_start(led_handle, ORANGE_ON);
     }
